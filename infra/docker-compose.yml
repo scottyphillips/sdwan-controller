@@ -6,9 +6,10 @@ services:
     image: postgres:16-alpine
     container_name: sdwan_db
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: strongpassword123
-      POSTGRES_DB: sdwan_core
+      # These now pull from your hidden .env file
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
