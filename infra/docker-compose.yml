@@ -6,7 +6,6 @@ services:
     image: postgres:16-alpine
     container_name: sdwan_db
     environment:
-      # These now pull from your hidden .env file
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
@@ -24,5 +23,26 @@ services:
       - "6379:6379"
     restart: unless-stopped
 
+  # The LLM Engine (Cognitive Auditor)
+  ollama-engine:
+    image: ollama/ollama:latest
+    container_name: sdwan_llm
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_FLASH_ATTENTION=1 # Speed boost for 50-series GPUs
+      - OLLAMA_KEEP_ALIVE=24h    # Keeps your 14B model "hot" in VRAM
+    restart: unless-stopped
+
 volumes:
-  pgdata: # Ensures your database survives a reboot
+  pgdata:
+  ollama_data: # Persists your DeepSeek models
