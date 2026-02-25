@@ -92,3 +92,38 @@ The platform extends the Service Fabric into Public Cloud environments (AWS, Azu
 
 ## 11. Global Routing Intent
 Cloud environments are mapped to **Organizations** and **Departments** just like physical sites. This ensures that a "Finance" department in a physical office can reach the "Finance" database in AWS, while remaining isolated from the "Guest" zone in the cloud.
+
+## 12. Deployment Modalities
+
+### A. Managed Service (SaaS Model)
+- **Hosted Orchestrator:** A central, multi-tenant cluster managed by the Realm Provider.
+- **Security:** Strict database-level row isolation using `realm_id`.
+- **Connectivity:** Edge Nodes connect back to the Cloud-hosted Control Fabric via public internet (authenticated via TLS/Mutual-Auth).
+
+### B. Self-Hosted (On-Prem Model)
+- **Private Orchestrator:** Deployed as a Docker Compose stack or K8s cluster within the client's own data center.
+- **Sovereignty:** All data, telemetry, and keys remain within the client's physical/logical perimeter.
+- **Offline Capability:** Designed to operate in air-gapped environments with local Core Gateways.
+
+## 13. High Availability & Persistence
+Regardless of modality, the system maintains state using:
+- **Primary State:** PostgreSQL 16 (Relational/Audit).
+- **Transient State:** Redis 7 (Heartbeats/Flow Telemetry).
+- **Secrets:** Environment-based vaulting to ensure keys are never written to disk in plain text.
+
+## 14. Macro-Segmentation (Standalone Network Contexts)
+Within a single Organization, the platform supports multiple **Standalone Network Contexts**. These act as completely isolated routing domains (VRFs).
+
+- **Isolation Level:** Traffic between two Contexts (e.g., 'Production' and 'Development') is prohibited by default at the routing level.
+- **Cross-Context Bridging:** If communication is required, it must be explicitly defined via a "Policy-Based Handover" at a Core Gateway.
+- **Addressing:** Each Context can utilize overlapping IP space (RFC1918) without conflict, as they reside in separate VRFs/Namespaces.
+
+### Visual Hierarchy:
+[Realm] 
+  └── [Organization]
+        ├── [Context: Production]
+        │     ├── {Dept: App-Servers}
+        │     └── {Dept: Database}
+        └── [Context: Legacy-Industrial]
+              ├── {Dept: PLC-Control}
+              └── {Dept: Monitoring}
