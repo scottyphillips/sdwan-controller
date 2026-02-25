@@ -6,34 +6,30 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	// Connection string: matches the admin/strongpassword123 we set in docker-compose
-	// We use localhost:5432 because the port is forwarded from the container to WSL
-	connStr := "postgres://admin:strongpassword123@localhost:5432/sdwan_core"
+	// 1. Load the .env file
+	// Inside main.go
+	err := godotenv.Load("../.env") // This tells Go to step out of backend-go and find the file
+	if err != nil {
+		fmt.Println("Error loading .env file from root")
+	}
 
-	// context.Background() is the "standard" way to start a long-running process in Go
+	// 2. Pull the secret from the environment instead of hardcoding it
+	connStr := os.Getenv("DATABASE_URL")
+	if connStr == "" {
+		fmt.Println("DATABASE_URL not set in environment")
+		os.Exit(1)
+	}
+
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
 		fmt.Printf("Unable to connect to database: %v\n", err)
-		fmt.Println("Check if your Docker containers are running (docker ps)")
 		os.Exit(1)
 	}
-	
-	// Ensure the connection closes when the program finishes
 	defer conn.Close(context.Background())
 
-	// A quick health check query
-	var version string
-	err = conn.QueryRow(context.Background(), "SELECT version()").Scan(&version)
-	if err != nil {
-		fmt.Printf("QueryRow failed: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("--- SD-WAN CONTROLLER STATUS ---")
-	fmt.Println("Successfully connected to the PostgreSQL database!")
-	fmt.Printf("DB Version: %s\n", version)
-	fmt.Println("---------------------------------")
+	fmt.Println("Successfully connected using Environment Variables!")
 }

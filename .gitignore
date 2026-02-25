@@ -7,6 +7,7 @@
 backend-go/backend-go    # The compiled binary
 vendor/
 go.sum
+backend-go/main
 
 # --- Python ---
 __pycache__/
