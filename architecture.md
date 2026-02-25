@@ -150,3 +150,74 @@ The platform is designed to ingest existing infrastructure ("Brownfield") withou
 
 ### C. LLM-Assisted Translation
 - The **Cognitive Control Plane** analyzes legacy CLI configs (e.g., a 2,000-line Cisco `running-config`) and translates them into the platform's standardized JSON intent.
+
+## 17. Transactional State & Consistency Alignment
+To ensure stability during Brownfield migrations and complex updates, the platform utilizes a State Machine for every Managed Node:
+
+### The "In Transition" Phase:
+- **Consistency Guard:** During a migration, if "odd zones" or legacy ACLs are detected that don't map to the 4-tier model, the node is marked `IN_TRANSITION`.
+- **Atomic Rollbacks:** No configuration is "committed" until the Orchestrator validates the entire path consistency. If a Spoke is `IN_TRANSITION`, the Hub will hold both the old and new tunnel definitions to prevent a blackout.
+- **Shadow Alignment:** The LLM identifies "Odd Zones" (legacy segments) and suggests temporary "Bridge Zones" to maintain connectivity while the node moves toward the final standardized state.
+
+### State Flow:
+[Discovered] -> [In Transition] -> [Validating] -> [Aligned/Standardized]
+
+## 18. Policy Normalization & Zone Collapsing
+For high-density legacy environments (hundreds of rules/dozens of zones), the platform employs a "Normalization Engine":
+
+### A. Intent-Based Policy Mapping
+- **Shadow Detection:** The Orchestrator identifies redundant, shadowed, or conflicting rules during the `IN_TRANSITION` phase.
+- **Zone Mapping:** Legacy zones are mapped to **Standardized Departments**. 
+  - *Example:* `Legacy_Zone_7` -> `Context: Production / Dept: IoT`.
+
+### B. Policy "Hydration"
+- Instead of pushing 500 static rules, the Orchestrator pushes **Dynamic Sets**. 
+- It uses `ipset` (Linux) or `Object-Groups` (Vendor) to group IPs, keeping the actual firewall policy human-readable and high-performance.
+
+### C. The "Safety Valve"
+- For "Odd Rules" that don't fit the 4-tier model, the Orchestrator creates a **Legacy Exception Zone**. This keeps the network running while the LLM flags the rule for manual review or eventual decommissioning.
+
+## 19. Local Compute & Inference (The GPU Worker)
+To ensure data sovereignty and low-latency orchestration, the platform supports local GPU-accelerated inference:
+
+- **Hardware Target:** NVIDIA RTX 50-Series (5070 Ti+) via CUDA.
+- **Inference Engine:** Managed via a sidecar service (Ollama/vLLM).
+- **Model Role:** - **Refactoring:** Collapsing legacy firewall rules.
+    - **Validation:** Checking proposed configurations for logic errors.
+    - **Documentation:** Automatically generating `CHANGELOG.md` for every network transition.
+
+## 20. Cognitive Quality Assurance (Policy Verification)
+To prevent "Hallucinations" in firewall refactoring, the platform enforces a Zero-Trust Logic Gate:
+
+- **Deterministic Validation:** LLM outputs are validated against the Go-defined JSON Schema.
+- **Reachability Diffing:** The Orchestrator compares the "Effective Security Posture" of legacy rules vs. LLM-optimized rules using a symbolic execution engine.
+- **Human-in-the-Loop (HITL):** For high-density rule changes (>50 rules), the Orchestrator generates a "Comparison Report" and requires a manual sign-off before leaving the `IN_TRANSITION` state.
+
+## 21. Cognitive Gap Analysis (Legacy vs. Intent)
+The platform utilizes the local LLM to reconcile reality with intention during the discovery phase:
+
+- **State Comparison:** The LLM ingests "Current State" telemetry and compares it against the "Desired State" defined in the Postgres DB.
+- **Drift Detection:** It identifies configuration drift (e.g., a local admin manually added an 'Odd Zone' on a physical firewall) and flags it for remediation.
+- **Remediation Scripting:** The LLM generates the specific sequence of `Go` driver calls required to transition the node from its legacy mess to the standardized architecture.
+- **Explainability:** For every change, the LLM provides a "Reasoning Block," explaining why certain legacy elements were collapsed or discarded to meet the new security posture.
+
+## 22. Digital Twin & Sandbox Replication
+To eliminate the risk of "Intent-to-Reality" mismatches, the platform supports a high-fidelity virtualized simulation layer:
+
+- **Shadow Instance Spawning:** The Orchestrator can trigger the creation of virtual replicas (using Containerlab or lightweight KVM instances) of any managed Spoke or Gateway.
+- **Pre-Commit Simulation:** Before leaving the `IN_TRANSITION` state, the "Shadow Node" is loaded with the proposed configuration.
+- **Verification Testing:** Synthetic traffic probes are executed within the virtual context to verify that the **Macro-Segmentation (Contexts)** and **Micro-Segmentation (Departments)** are behaving as intended.
+- **Drift Simulation:** Allows the admin to "test" a legacy Brownfield config against a proposed refactor in a 100% isolated environment.
+
+## 23. The Foundation Overlay (OAM & ZTP)
+The platform utilizes a dedicated, high-resiliency **Foundation Overlay** for all administrative, orchestration, and discovery tasks.
+
+### A. Zero-Touch Provisioning (ZTP)
+- **Identity Bootstrapping:** New nodes call home via a secure ZTP URL (pre-configured or via DHCP Option 66).
+- **Mutual Authentication:** The Brain verifies the node's hardware ID/TPM before pushing the initial "Nerve Center" configuration.
+- **Initial Handshake:** The node is automatically assigned to its **Realm** and placed in a `PENDING_ADOPTION` state.
+
+### B. Management Plane Isolation
+- **The Nerve Center Fabric:** A permanent, encrypted control tunnel that exists independently of the Service Fabric.
+- **Priority (QoS):** OAM traffic is tagged with the highest priority (DSCP CS6/CS7) to ensure the Brain never loses contact with the "Muscle" (the nodes) during high congestion.
+- **Discovery Engine:** Used to "audit" legacy brownfield configurations before the **In Transition** state is triggered.
