@@ -1,0 +1,94 @@
+# 🗺 SD-WAN Project Architecture Pattern (Updated 2026)
+
+## 1. System Overview
+This is a **Protocol-Agnostic SD-WAN Controller**. It separates the Control Plane (Intelligence) from a Data Plane that can consist of Linux-based Gateways or Enterprise Vendor Hardware.
+
+## 2. Component Definitions
+
+### A. The Orchestrator (Control Plane)
+- **Role:** Centralized Intent Engine.
+- **New Capability:** **Multi-Vendor Driver Layer.** The Orchestrator uses Netmiko (Python) or Go-SSH to push CLI commands to vendor hubs (Cisco FlexVPN, Juniper Hub-and-Spoke).
+
+### B. The Hub (Universal Data Plane)
+- **Linux Hub:** Can run dual-stack (WireGuard + IPsec) to bridge modern and legacy spokes.
+- **Vendor Hub (New):** A Cisco/Juniper/Fortinet device acting as a standard **IPsec Hub**. 
+    - *Constraint:* Spokes connecting to a Vendor Hub must use IPsec (IKEv2), as vendor gear typically lacks native WireGuard support.
+
+### C. The Spokes
+- **Native Spokes:** Use WireGuard when connecting to a Linux Hub; fallback to IPsec when connecting to a Vendor Hub.
+- **Legacy Spokes:** Always use IPsec.
+
+## 3. Communication Patterns (The "Translation" Logic)
+When the Orchestrator assigns a Spoke to a Hub, it performs a **Protocol Match**:
+1.  **IF** (Hub == Linux) **AND** (Spoke == Linux) → **Deploy WireGuard**.
+2.  **IF** (Hub == Vendor) **OR** (Spoke == Vendor) → **Deploy IPsec (IKEv2)**.
+
+## 4. AI Agent Guidelines
+- **Driver Modules:** Create a `drivers/` directory. Each vendor (Cisco, Juniper, Linux) should have a driver that translates "Intent" (e.g., `AddTunnel`) into specific CLI or API commands.
+- **Abstraction:** The main Go logic should never see "Cisco" or "Linux." It should only see a `HubInterface` with a `PushConfig()` method.
+
+## 5. Dynamic Mesh Engine (Flow-Based Intent)
+To optimize latency and reduce Hub load, the Orchestrator supports **Dynamic Path Selection**:
+
+- **Telemetry Source:** Hubs stream flow data (NetFlow/IPFIX) to the Redis cache.
+- **Mesh Trigger:** The Orchestrator evaluates flows. If persistent heavy traffic is detected between two Spokes, a "Direct-Mesh" intent is generated.
+- **Protocol Flexibility:**
+    - **Linux-to-Linux:** Dynamic WireGuard peering.
+    - **Vendor-to-Vendor:** Dynamic IPsec/VTI or Auto-Discovery VPN (ADVPN/NHRP).
+- **TTL (Time to Live):** Mesh tunnels are ephemeral. If traffic drops below a threshold for X minutes, the Orchestrator tears down the shortcut to save resources.
+
+## 6. Departmental Segmentation (Firewall Zones)
+The solution enforces logical isolation through "Departments."
+
+- **Isolation Strategy:** - **Layer 2:** VLAN tagging per department at the Spoke switchports.
+    - **Layer 3:** VRF (Virtual Routing and Forwarding) on Vendor gear; Network Namespaces on Linux Hubs.
+- **Zone-Based Firewall (ZBF):** - Traffic is assigned to a **Security Zone** based on its Department.
+    - Policies are defined as `Zone_A -> Zone_B` relations.
+- **Vendor Translation:**
+    - **Cisco:** Orchestrator pushes `ip inspect` or `zone-pair` CLI commands.
+    - **Linux:** Orchestrator pushes `nftables` rules using named sets for zones.
+
+## 7. Hierarchical Multi-Tenancy (Realms & Orgs)
+The solution follows a 3-tier hierarchy for Service Provider (MSP) readiness:
+
+1. **Realm Layer:** The top-level administrative boundary. Policies defined here can be "Global" (e.g., Standard DNS).
+2. **Organization Layer:** Logical tenant isolation. Routing tables are completely separate at this level.
+3. **Department Layer:** Micro-segmentation within an Organization. Enforced by Zone-Based Firewalls.
+
+### Data Sovereignty:
+- All database queries MUST include a `realm_id` to prevent cross-tenant data leakage.
+- AI agents must prioritize isolation; a "Finance" zone in Org A must never reach a "Finance" zone in Org B unless explicitly bridged via a Gateway.
+
+## 8. Infrastructure Roles (Gateway vs. Anchor)
+To maximize deployment flexibility, the platform distinguishes between Infrastructure-owned and Client-owned hardware:
+
+### A. Core Gateways (Provider Tier)
+- **Role:** High-availability multi-tenant ingress points.
+- **Ownership:** Maintained at the **Realm** level.
+- **Function:** Acts as a transit point for organizations without dedicated data center footprints.
+
+### B. Site Anchors (Enterprise Tier)
+- **Role:** Single-tenant dedicated convergence points.
+- **Ownership:** Assigned to a specific **Organization**.
+- **Function:** Serves as the primary tunnel termination point for a specific client’s headquarters or private cloud.
+
+## 9. Fabric Management (The Control Fabric)
+The platform utilizes a dual-channel communication strategy to ensure reliability:
+- **Control Fabric:** A lightweight, high-priority path used exclusively for orchestration, telemetry, and heartbeats.
+- **Service Fabric:** The primary path for end-user data, utilizing either WireGuard or IPsec based on node capability.
+
+## 10. Cloud Fabric Extension (Multi-Cloud Ingress)
+The platform extends the Service Fabric into Public Cloud environments (AWS, Azure, GCP) using a dual-modality approach:
+
+### A. Virtualized Cloud Anchors
+- **Implementation:** A containerized or VM-based Edge Node deployed directly into the Cloud VPC.
+- **Protocol:** Prefers **WireGuard** for high-throughput, low-latency transit to the Core Gateway.
+- **Benefit:** Full visibility and telemetry identical to an on-premise Site Anchor.
+
+### B. Native Cloud Peering
+- **Implementation:** The Orchestrator leverages Cloud APIs to provision native VPN Gateways.
+- **Protocol:** **IPsec (IKEv2)**.
+- **Benefit:** Zero-footprint deployment; utilizes cloud-native routing (e.g., AWS Transit Gateway).
+
+## 11. Global Routing Intent
+Cloud environments are mapped to **Organizations** and **Departments** just like physical sites. This ensures that a "Finance" department in a physical office can reach the "Finance" database in AWS, while remaining isolated from the "Guest" zone in the cloud.
