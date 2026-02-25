@@ -127,3 +127,26 @@ Within a single Organization, the platform supports multiple **Standalone Networ
         └── [Context: Legacy-Industrial]
               ├── {Dept: PLC-Control}
               └── {Dept: Monitoring}
+
+## 15. Cognitive Control Plane (LLM-Driven Intent)
+The platform leverages Large Language Models (LLMs) to abstract complex configuration tasks:
+
+- **Natural Language Intent (NLI):** Administrative changes are submitted via structured prompts.
+- **Validation Loop:** The LLM generates a "Proposed Change" (JSON). The Go Orchestrator validates this against safety rules (e.g., "No overlapping subnets") before execution.
+- **Self-Healing:** Telemetry from Redis is fed back to the LLM. If a "Dynamic Mesh" fails to establish, the LLM analyzes the logs and suggests a protocol fallback (e.g., "Switching Spoke A to IPsec due to MTU issues").
+- **Auditability:** Every LLM-generated change is stored in a `governance_logs` table with the original prompt and the resulting Git diff of the config.
+
+## 16. Brownfield Adoption & Discovery
+The platform is designed to ingest existing infrastructure ("Brownfield") without requiring a factory reset or downtime:
+
+### A. Discovery Service
+- **Logic:** Utilizing the Multi-Vendor Driver layer, the Orchestrator performs a read-only audit of legacy configurations.
+- **Entity Matching:** Existing VLANs, VRFs, and Tunnels are automatically proposed as candidates for specific **Network Contexts** or **Departments**.
+
+### B. Managed vs. Unmanaged State
+- **Unmanaged:** The Orchestrator monitors the device but does not push configuration changes.
+- **Partially Managed:** The Orchestrator only manages the "SD-WAN Tunnels" while leaving local branch routing to the legacy config.
+- **Fully Managed:** The Orchestrator takes full "Source of Truth" ownership of the device.
+
+### C. LLM-Assisted Translation
+- The **Cognitive Control Plane** analyzes legacy CLI configs (e.g., a 2,000-line Cisco `running-config`) and translates them into the platform's standardized JSON intent.
