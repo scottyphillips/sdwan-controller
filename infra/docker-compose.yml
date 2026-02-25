@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # The Source of Truth (IPAM & Intent)
+  postgres-sdwan:
+    image: postgres:16-alpine
+    container_name: sdwan_db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: strongpassword123
+      POSTGRES_DB: sdwan_core
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # The Telemetry Cache (Real-time Performance)
+  redis-cache:
+    image: redis:7-alpine
+    container_name: sdwan_cache
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  pgdata: # Ensures your database survives a reboot
