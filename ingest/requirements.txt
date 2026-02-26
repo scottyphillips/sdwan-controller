@@ -1,0 +1,4 @@
+ansible-core>=2.14
+ansible-pylibssh>=1.0.0
+ncclient>=0.6.0,<0.7
+psycopg[binary]>=3.0

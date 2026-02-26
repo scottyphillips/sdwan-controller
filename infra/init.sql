@@ -39,3 +39,24 @@ CREATE TABLE core.interfaces (
     role TEXT, -- 'wan', 'lan', 'tunnel'
     is_up BOOLEAN DEFAULT false
 );
+
+-- 5. Device Audits (LLM discovery / cognitive plane)
+CREATE TABLE core.device_audits (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ip_address INET NOT NULL,
+    tier TEXT NOT NULL,
+    hostname TEXT NOT NULL,
+    confidence INTEGER NOT NULL,
+    logic TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. Device Facts (structured ingest from Ansible/Netmiko)
+CREATE TABLE core.device_facts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_id UUID NOT NULL REFERENCES core.devices(id) ON DELETE CASCADE,
+    gathered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    facts JSONB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_device_facts_device_id ON core.device_facts(device_id);
+CREATE INDEX IF NOT EXISTS idx_device_facts_gathered_at ON core.device_facts(gathered_at DESC);

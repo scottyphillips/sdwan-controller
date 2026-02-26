@@ -1,0 +1,68 @@
+---
+# Gather structured facts from Juniper Junos (vSRX, etc.) via NETCONF.
+# Uses junos_rpc instead of junos_facts to avoid ncclient/junos_facts bug
+# ('Hardware' object has no attribute '_module'). Requires NETCONF on device.
+
+- name: Juniper Junos facts via RPC
+  hosts: juniper
+  gather_facts: false
+  connection: netconf
+
+  vars:
+    ansible_network_os: junipernetworks.junos.junos
+
+  tasks:
+    - name: Get system information (hostname, version, etc.)
+      junipernetworks.junos.junos_rpc:
+        rpc: get-system-information
+        output: json
+      register: rpc_sys
+      ignore_errors: true
+
+    - name: Get system information (XML fallback for older Junos)
+      junipernetworks.junos.junos_rpc:
+        rpc: get-system-information
+        output: xml
+      register: rpc_sys_xml
+      when: rpc_sys is failed or (rpc_sys.output is not defined or rpc_sys.output == '')
+
+    - name: Get full running configuration (committed)
+      junipernetworks.junos.junos_rpc:
+        rpc: get-configuration
+        output: json
+        attrs:
+          database: committed
+          format: json
+      register: rpc_config
+      ignore_errors: true
+
+    - name: Get full running configuration (text fallback)
+      junipernetworks.junos.junos_rpc:
+        rpc: get-configuration
+        output: text
+        attrs:
+          database: committed
+          format: text
+      register: rpc_config_text
+      when: rpc_config is failed or (rpc_config.output is not defined or rpc_config.output == '')
+
+    - name: Build ingest payload
+      ansible.builtin.set_fact:
+        ingest_payload:
+          mgmt_ip: "{{ ansible_host }}"
+          hostname: "{{ hostname_val | default(ansible_host) }}"
+          vendor: juniper
+          platform: junos
+          facts:
+            system_information: "{{ rpc_sys.output if (rpc_sys is succeeded and rpc_sys.output is defined) else {'xml': (rpc_sys_xml.xml | default(''))} }}"
+            running_config: "{{ rpc_config.output if (rpc_config is succeeded and rpc_config.output is defined) else {'format': 'text', 'config': (rpc_config_text.output | default('')) if (rpc_config_text is defined) else ''} }}"
+      vars:
+        # rpc_sys.output is already a dict from junos_rpc; Junos uses host-name and nested [{"data": "..."}]
+        _si: "{{ (rpc_sys.output.get('system-information', [{}])[0]) if (rpc_sys is succeeded and rpc_sys.output is defined) else {} }}"
+        hostname_val: "{{ _si.get('host-name', [{}])[0].get('data') if (_si.get('host-name') | length > 0) else none }}"
+
+    - name: Write facts to output for loader
+      ansible.builtin.copy:
+        content: "{{ ingest_payload | to_nice_json }}"
+        dest: "/out/facts.json"
+        mode: "0644"

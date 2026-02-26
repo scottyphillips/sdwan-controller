@@ -43,6 +43,29 @@ services:
       - OLLAMA_KEEP_ALIVE=24h    # Keeps your 14B model "hot" in VRAM
     restart: unless-stopped
 
+  # Network ingest (Ansible + Juniper). Run on demand: docker compose --profile ingest run --rm ingest
+  ingest:
+    build:
+      context: ..
+      dockerfile: ingest/Dockerfile
+    env_file: ../.env
+    environment:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      JUNIPER_HOST: ${JUNIPER_HOST:-}
+      JUNIPER_USER: ${JUNIPER_USER:-admin}
+      JUNIPER_PASSWORD: ${JUNIPER_PASSWORD:-}
+      JUNIPER_NETCONF_PORT: ${JUNIPER_NETCONF_PORT:-830}
+    network_mode: host
+    volumes:
+      - ingest_known_hosts:/root/.ssh
+    profiles:
+      - ingest
+
 volumes:
   pgdata:
   ollama_data: # Persists your DeepSeek models
+  ingest_known_hosts: # Persists SSH known_hosts for ingest targets (vSRX, etc.)
