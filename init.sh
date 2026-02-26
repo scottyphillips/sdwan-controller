@@ -7,7 +7,7 @@ COMPOSE_FILE="./infra/docker-compose.yml"
 
 echo "🚀 Starting SD-WAN Stack (Postgres, Redis, Ollama)..."
 # Using 'docker compose' (V2) as we confirmed this works on your WSL2 setup
-docker compose -f $COMPOSE_FILE up -d
+docker compose --env-file .env -f $COMPOSE_FILE up -d
 
 echo "⏳ Waiting for Ollama engine to wake up..."
 # We check from the WSL2 side
